@@ -1,27 +1,22 @@
 # 编译器设置
 CXX = g++
-CXXFLAGS = -Wall -std=c++11 -g
+CXXFLAGS = -Wall -std=c++11 -g -pthread
 
 # 目标文件和源文件
-TARGET = objectpool
-SRC = ObjectPool.cc
-OBJ = $(SRC:.cc=.o)
+TARGET = UnitTest
+SRC = UnitTest.cc
 HEADERS = $(wildcard *.hpp)
 
 # 默认目标
 all: $(TARGET)
 
-# 编译规则
-$(TARGET): $(OBJ)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJ)
-
-# 生成目标文件
-%.o: %.cc $(HEADERS)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+# 直接从源文件编译可执行文件
+$(TARGET): $(SRC) $(HEADERS)
+	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SRC)
 
 # 清理规则
 clean:
-	rm -f $(TARGET) $(OBJ)
+	rm -f $(TARGET)
 
 # 声明伪目标
 .PHONY: all clean
