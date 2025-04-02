@@ -1,5 +1,6 @@
 #pragma once
 #include "Common.hpp"
+#include "CentralCache.hpp"
 
 class ThreadCache
 {
@@ -31,7 +32,31 @@ public:
 
     void *FetchFromCentralCache(size_t index, size_t size)
     {
-        return nullptr;
+        //慢开始反馈调节算法
+
+        size_t batchNum = std::min(_freeLists[index].MaxSize(), SizeClass::NumMoveSize(size));
+
+        if (_freeLists[index].MaxSize() == batchNum)
+        {
+            _freeLists[index].MaxSize()++;
+        }
+
+        void* start = nullptr;
+        void* end = nullptr;
+        size_t actualNum = CentralCache::GetInstance()->FetchRangeObj(start, end, batchNum, size);
+
+        assert(actualNum > 1);
+
+        if (actualNum == 1)
+        {
+            assert(start == end);
+            return start;
+        }
+        else
+        {
+            _freeLists[index].PushRange(NextObj(start),end);
+            return start;
+        }
     }
 
 private:

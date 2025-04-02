@@ -3,8 +3,11 @@
 #include <iostream>
 #include <vector>
 #include <thread>
+#include <chrono> // 添加chrono头文件
+#include <mutex>  // 添加mutex头文件
 #include <time.h>
 #include <assert.h>
+#include <algorithm>
 #ifdef _WIN32
 #include <process.h>
 #else
@@ -29,6 +32,17 @@ inline std::string get_thread_id_str()
 #endif
     return oss.str();
 }
+
+// 定义PAGE_ID类型
+#ifdef _WIN64
+typedef unsigned long long PAGE_ID;
+#elif _WIN32
+typedef size_t PAGE_ID;
+#elif defined(__x86_64__) || defined(__aarch64__) || defined(__powerpc64__) // 64位Linux
+typedef unsigned long long PAGE_ID;
+#else                                                                       // 32位Linux或其他平台
+typedef size_t PAGE_ID;
+#endif
 
 using std::cout;
 using std::endl;
@@ -56,6 +70,12 @@ public:
         _freeList = obj;
     }
 
+    void PushRange(void* start, void* end)
+    {
+        NextObj(end) = _freeList;
+        _freeList = start;
+    }
+
     void *Pop()
     {
         assert(_freeList);
@@ -69,8 +89,13 @@ public:
         return _freeList == nullptr;
     }
 
+    size_t& MaxSize()
+    {
+        return _maxSize;
+    }
 private:
     void *_freeList = nullptr;
+    size_t _maxSize = 1;
 };
 
 // 计算对象大小的对齐映射规则
@@ -174,6 +199,21 @@ public:
         }
         return -1;
     }
+
+    static size_t NumMoveSize(size_t size)
+    {
+        assert(size > 0);
+
+        int num = MAX_BYTES / size;
+        if (num < 2)
+            num = 2;
+        
+        if (num > 512)
+            num = 512;
+        
+        return num;
+    }
+
 };
 
 inline pid_t get_process_id()
@@ -184,3 +224,56 @@ inline pid_t get_process_id()
     return getpid();
 #endif
 }
+
+struct Span
+{
+    PAGE_ID _pageID = 0; // 大块内存起始页的页号
+    size_t _n = 0;       // 页的数量
+
+    Span *_next = nullptr;
+    Span *_prev = nullptr;
+
+    size_t _useCount = 0;
+    void *_freeList = nullptr;
+};
+
+class SpanList
+{
+public:
+    SpanList()
+    {
+        _head = new Span;
+        _head->_next = _head;
+        _head->_prev = _head;
+    }
+
+    void Insert(Span *pos, Span *newSpan)
+    {
+        assert(pos);
+        assert(newSpan);
+
+        Span *prev = pos->_prev;
+        prev->_next = newSpan;
+        newSpan->_prev = prev;
+        newSpan->_next = pos;
+        pos->_prev = newSpan;
+    }
+
+    void Erase(Span *pos)
+    {
+        assert(pos);
+        assert(pos != _head);
+
+        Span *prev = pos->_prev;
+        Span *next = pos->_next;
+
+        prev->_next = next;
+        next->_prev = prev;
+    }
+
+private:
+    Span *_head;
+
+public:
+    std::mutex _mtx;
+};
