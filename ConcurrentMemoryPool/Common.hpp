@@ -101,7 +101,7 @@ public:
         _freeList = obj;
     }
 
-    void PushRange(void* start, void* end)
+    void PushRange(void *start, void *end)
     {
         NextObj(end) = _freeList;
         _freeList = start;
@@ -120,10 +120,11 @@ public:
         return _freeList == nullptr;
     }
 
-    size_t& MaxSize()
+    size_t &MaxSize()
     {
         return _maxSize;
     }
+
 private:
     void *_freeList = nullptr;
     size_t _maxSize = 1;
@@ -238,10 +239,10 @@ public:
         int num = MAX_BYTES / size;
         if (num < 2)
             num = 2;
-        
+
         if (num > 512)
             num = 512;
-        
+
         return num;
     }
 
@@ -257,7 +258,6 @@ public:
         }
         return npage;
     }
-
 };
 
 inline pid_t get_process_id()
@@ -291,12 +291,12 @@ public:
         _head->_prev = _head;
     }
 
-    Span* Begin()
+    Span *Begin()
     {
         return _head->_next;
     }
 
-    Span* End()
+    Span *End()
     {
         return _head;
     }
@@ -306,14 +306,14 @@ public:
         return _head->_next == _head;
     }
 
-    void PushFront(Span* span)
+    void PushFront(Span *span)
     {
         Insert(Begin(), span);
     }
 
-    Span* PopFront()
+    Span *PopFront()
     {
-        Span* front = _head->_next;
+        Span *front = _head->_next;
         Erase(front);
         return front;
     }
