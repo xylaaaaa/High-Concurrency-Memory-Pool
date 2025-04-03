@@ -1,37 +1,11 @@
 #include <iostream>
 #include <vector>
 #include <time.h>
+#include "Common.hpp"
 using std::cout;
 using std::endl;
 
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <sys/mman.h>
-#include <unistd.h>
-#endif
 
-inline static void *SystemAlloc(size_t kpage)
-{
-#ifdef _WIN32
-    void *ptr = VirtualAlloc(0, kpage << 13, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-#else
-    // mmap 参数：起始地址，大小，权限，映射类型，文件描述符，偏移量
-    void *ptr = mmap(NULL, kpage << 13, PROT_READ | PROT_WRITE,
-                     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (ptr == MAP_FAILED)
-    {
-        ptr = nullptr;
-    }
-#endif
-
-    if (ptr == nullptr)
-    {
-        throw std::bad_alloc();
-    }
-
-    return ptr;
-}
 
 template <class T>
 class ObjectPool

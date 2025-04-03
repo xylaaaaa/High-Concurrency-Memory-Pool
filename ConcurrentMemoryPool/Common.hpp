@@ -19,6 +19,13 @@
 #include <windows.h> // 添加 Windows API 头文件，用于 GetCurrentThreadId()
 #endif
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
+
 // 获取线程ID的跨平台函数
 inline std::string get_thread_id_str()
 {
@@ -49,6 +56,30 @@ using std::endl;
 
 static const size_t MAX_BYTES = 256 * 1024;
 static const size_t NFREELIST = 208;
+static const size_t NPAGES = 129;
+static const size_t PAGE_SHIFT = 13;
+
+inline static void *SystemAlloc(size_t kpage)
+{
+#ifdef _WIN32
+    void *ptr = VirtualAlloc(0, kpage << 13, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+#else
+    // mmap 参数：起始地址，大小，权限，映射类型，文件描述符，偏移量
+    void *ptr = mmap(NULL, kpage << 13, PROT_READ | PROT_WRITE,
+                     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (ptr == MAP_FAILED)
+    {
+        ptr = nullptr;
+    }
+#endif
+
+    if (ptr == nullptr)
+    {
+        throw std::bad_alloc();
+    }
+
+    return ptr;
+}
 
 static void *&NextObj(void *obj) // 返回void*的引用
 {
@@ -214,6 +245,19 @@ public:
         return num;
     }
 
+    static size_t NumMovePage(size_t size)
+    {
+        size_t num = NumMoveSize(size);
+        size_t npage = num * size;
+        npage >>= PAGE_SHIFT;
+
+        if (npage == 0)
+        {
+            npage = 1;
+        }
+        return npage;
+    }
+
 };
 
 inline pid_t get_process_id()
@@ -245,6 +289,33 @@ public:
         _head = new Span;
         _head->_next = _head;
         _head->_prev = _head;
+    }
+
+    Span* Begin()
+    {
+        return _head->_next;
+    }
+
+    Span* End()
+    {
+        return _head;
+    }
+
+    bool Empty()
+    {
+        return _head->_next == _head;
+    }
+
+    void PushFront(Span* span)
+    {
+        Insert(Begin(), span);
+    }
+
+    Span* PopFront()
+    {
+        Span* front = _head->_next;
+        Erase(front);
+        return front;
     }
 
     void Insert(Span *pos, Span *newSpan)

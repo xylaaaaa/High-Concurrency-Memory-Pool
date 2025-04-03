@@ -2,6 +2,8 @@
 
 #include "Common.hpp"
 
+#include "PageCache.hpp"
+
 class CentralCache
 {
 public:
@@ -12,9 +14,48 @@ public:
 
     Span* GetOneSpan(SpanList& list, size_t size)
     {
-        //..
-        return nullptr;
+        Span* it = list.Begin();
+        while (it != list.End())
+        {
+            if (it -> _freeList != nullptr)
+            {
+                return it;
+            }
+            else
+            {
+                it = it->_next;
+            }
+        }
+        //解锁, 不然如果有释放内存回来的无法回来
+        list._mtx.unlock();
 
+        //没有空闲Span了 需要从page Cache 获取
+        PageCache::GetInstance()->_pageMtx.lock();
+        Span* span = PageCache::GetInstance()->NewSpan(SizeClass::NumMovePage(size));
+        PageCache::GetInstance()->_pageMtx.unlock();
+
+        //对span切分,不需要加锁,因为其他线程访问不到这个span
+
+        char* start = (char*)(span->_pageID << PAGE_SHIFT); //起始地址
+        size_t bytes = span->_n << PAGE_SHIFT; //大块内存大小
+        char* end = start + bytes;
+
+        span->_freeList = start;
+        start += size;
+        void* tail = span -> _freeList;
+        int i = 1;
+        while(start < end)
+        {
+            i++;
+            NextObj(tail) = start;
+            tail = NextObj(tail);
+            start += size;
+        }
+        
+        // 还回去再加锁
+        list._mtx.lock();
+        list.PushFront(span);
+        return span;
     }
 
     size_t FetchRangeObj(void*& start, void*& end, size_t batchNum, size_t size)
