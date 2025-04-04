@@ -80,6 +80,7 @@ public:
         }
         span->_freeList = NextObj(end);
         NextObj(end) = nullptr;
+        span->_useCount += actualNum;
         _spanLists[index]._mtx.unlock();
 
         return actualNum;

@@ -45,7 +45,7 @@ public:
         void* end = nullptr;
         size_t actualNum = CentralCache::GetInstance()->FetchRangeObj(start, end, batchNum, size);
 
-        assert(actualNum > 1);
+        assert(actualNum > 0); 
 
         if (actualNum == 1)
         {
