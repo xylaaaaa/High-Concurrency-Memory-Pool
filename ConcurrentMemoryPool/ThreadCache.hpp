@@ -28,6 +28,21 @@ public:
 
         size_t index = SizeClass::Index(size);
         _freeLists[index].Push(ptr);
+
+        //当链表长度大于一次批量申请的内存时就开始还一段list给central cache
+        if (_freeLists->Size() >= _freeLists->MaxSize())
+        {
+            ListTooLong(_freeLists[index], size);
+        }
+    }
+
+    void ListTooLong(FreeList& list, size_t size)
+    {
+        void* start = nullptr;
+        void* end = nullptr;
+        list.PopRange(start, end, list.MaxSize());
+
+        CentralCache::GetInstance()->ReleaseListToSpans(start, size);
     }
 
     void *FetchFromCentralCache(size_t index, size_t size)
@@ -54,7 +69,7 @@ public:
         }
         else
         {
-            _freeLists[index].PushRange(NextObj(start),end);
+            _freeLists[index].PushRange(NextObj(start), end, actualNum);
             return start;
         }
     }

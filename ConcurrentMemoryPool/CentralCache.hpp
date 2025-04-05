@@ -84,9 +84,41 @@ public:
         _spanLists[index]._mtx.unlock();
 
         return actualNum;
-
     }
 
+    void ReleaseListToSpans(void* start, size_t size)
+    {
+        size_t index = SizeClass::Index(size);
+        _spanLists[index]._mtx.lock();
+        while (start)
+        {
+            void* next = NextObj(start);
+            Span* span = PageCache::GetInstance()->MapObjectToSpan(start); //获取start对象对应的span
+            NextObj(start) = span->_freeList;
+            span->_freeList = start;
+            span->_useCount--;
+            
+            if(span->_useCount == 0)
+            {
+                _spanLists[index].Erase(span); // 从spanList中移除
+                span->_freeList = nullptr;
+                span->_next = nullptr;
+                span->_prev = nullptr;
+
+                _spanLists[index]._mtx.unlock(); // 如果有其他线程需要使用这个span,需要解锁
+
+                PageCache::GetInstance()->_pageMtx.lock();
+                PageCache::GetInstance()->ReleaseSpanToPageCache(span);
+                PageCache::GetInstance()->_pageMtx.unlock();
+
+                _spanLists[index]._mtx.lock();
+            }
+
+            start = next;
+        }
+        _spanLists[index]._mtx.unlock();
+    }
+    
 private:
     SpanList _spanLists[NFREELIST];
 

@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <vector>
+#include <unordered_map>
 #include <thread>
 #include <chrono> // 添加chrono头文件
 #include <mutex>  // 添加mutex头文件
@@ -99,12 +100,32 @@ public:
         assert(obj);
         NextObj(obj) = _freeList;
         _freeList = obj;
+
+        ++_size;
     }
 
-    void PushRange(void *start, void *end)
+    void PushRange(void *start, void *end, size_t n)
     {
         NextObj(end) = _freeList;
         _freeList = start;
+        _size += n;
+    }
+
+    void PopRange(void*& start, void*& end, size_t n)
+    {
+        assert(n <= _size);
+        start = _freeList;
+        end = start;
+
+        for (size_t i = 0; i < n - 1; i++)
+        {
+            end = NextObj(end);
+        }
+
+        _freeList = NextObj(end);
+        NextObj(end) = nullptr;
+        _size -= n;
+
     }
 
     void *Pop()
@@ -112,6 +133,7 @@ public:
         assert(_freeList);
         void *obj = _freeList;
         _freeList = NextObj(obj);
+        --_size;
         return obj;
     }
 
@@ -125,9 +147,15 @@ public:
         return _maxSize;
     }
 
+    size_t Size()
+    {
+        return _size;
+    }
+
 private:
     void *_freeList = nullptr;
     size_t _maxSize = 1;
+    size_t _size = 0;
 };
 
 // 计算对象大小的对齐映射规则
@@ -279,6 +307,8 @@ struct Span
 
     size_t _useCount = 0;
     void *_freeList = nullptr;
+
+    bool _isUse = false;
 };
 
 class SpanList
