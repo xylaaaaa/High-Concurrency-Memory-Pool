@@ -33,6 +33,8 @@ public:
                 nSpan->_n -= k;
 
                 _spanLists[nSpan->_n].PushFront(nSpan);
+
+                return _spanLists[k].PopFront();
             }
         }
 

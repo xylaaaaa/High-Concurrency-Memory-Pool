@@ -49,7 +49,7 @@ public:
             i++;
             NextObj(tail) = start;
             tail = NextObj(tail);
-            start += size;
+            start += size; // 按照size大小切分
         }
         
         // 还回去要加锁

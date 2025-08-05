@@ -81,7 +81,7 @@ inline static void *SystemAlloc(size_t kpage)
 
     return ptr;
 }
-
+// 直接void* ojj = 0x1000，直接改变obj指向的区域，如果是*（void**）obj = 0x1000改变的是obj指向的那块区域的值
 static void *&NextObj(void *obj) // 返回void*的引用
 {
     // 这里需要加引用&的原因:
@@ -162,6 +162,7 @@ private:
 class SizeClass
 {
 public:
+    // 申请多大的字节，按照对应字节对齐
     // 整体控制在最多10%左右的内碎片浪费
     // [1, 128] 8byte对齐 freeList[0, 16)
     // [128+1, 1024] 16byte对齐 freeList[16, 72)
@@ -260,6 +261,7 @@ public:
         return -1;
     }
 
+    // 从pagecache申请的块数量，性能优化，减少锁竞争，提高效率
     static size_t NumMoveSize(size_t size)
     {
         assert(size > 0);
