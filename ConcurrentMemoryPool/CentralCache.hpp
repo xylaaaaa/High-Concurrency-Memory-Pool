@@ -60,6 +60,12 @@ public:
     size_t FetchRangeObj(void*& start, void*& end, size_t batchNum, size_t size)
     {
         size_t index = SizeClass::Index(size);
+        size_t transferNum = FetchRangeObjFromTransferCache(index, batchNum, start, end);
+        if (transferNum > 0)
+        {
+            return transferNum;
+        }
+
         _spanLists[index]._mtx.lock();
 
         Span* span = GetOneSpan(_spanLists[index], size);
@@ -83,11 +89,23 @@ public:
         return actualNum;
     }
 
-    void ReleaseListToSpans(void* start, size_t size)
+    void ReleaseListToSpans(void* start, size_t size, size_t n)
     {
+        if (start == nullptr || n == 0)
+        {
+            return;
+        }
+
         size_t index = SizeClass::Index(size);
+        size_t cachedNum = PushRangeObjToTransferCache(index, size, start, n);
+        n -= cachedNum;
+        if (n == 0 || start == nullptr)
+        {
+            return;
+        }
+
         _spanLists[index]._mtx.lock();
-        while (start)
+        while (start && n > 0)
         {
             void* next = NextObj(start);
             Span* span = PageCache::GetInstance()->MapObjectToSpan(start); //获取start对象对应的span
@@ -112,12 +130,74 @@ public:
             }
 
             start = next;
+            --n;
         }
         _spanLists[index]._mtx.unlock();
     }
     
 private:
+    size_t FetchRangeObjFromTransferCache(size_t index, size_t batchNum, void*& start, void*& end)
+    {
+        std::lock_guard<std::mutex> lock(_transferMtx[index]);
+        size_t transferSize = _transferLists[index].Size();
+        if (transferSize == 0)
+        {
+            start = nullptr;
+            end = nullptr;
+            return 0;
+        }
+
+        size_t fetchNum = std::min(batchNum, transferSize);
+        start = _transferLists[index].Pop();
+        end = start;
+        for (size_t i = 1; i < fetchNum; ++i)
+        {
+            void* obj = _transferLists[index].Pop();
+            NextObj(end) = obj;
+            end = obj;
+        }
+        NextObj(end) = nullptr;
+        return fetchNum;
+    }
+
+    size_t PushRangeObjToTransferCache(size_t index, size_t size, void*& start, size_t n)
+    {
+        std::lock_guard<std::mutex> lock(_transferMtx[index]);
+        InitTransferCacheMaxSize(index, size);
+
+        size_t transferSize = _transferLists[index].Size();
+        if (transferSize >= _transferCacheMaxSize[index])
+        {
+            return 0;
+        }
+
+        size_t remainCapacity = _transferCacheMaxSize[index] - transferSize;
+        size_t pushNum = std::min(n, remainCapacity);
+        for (size_t i = 0; i < pushNum; ++i)
+        {
+            void* obj = start;
+            start = NextObj(start);
+            _transferLists[index].Push(obj);
+        }
+
+        return pushNum;
+    }
+
+    void InitTransferCacheMaxSize(size_t index, size_t size)
+    {
+        if (_transferCacheMaxSize[index] != 0)
+        {
+            return;
+        }
+
+        size_t base = SizeClass::NumMoveSize(size);
+        _transferCacheMaxSize[index] = std::max(base * 4, static_cast<size_t>(2));
+    }
+
     SpanList _spanLists[NFREELIST];
+    FreeList _transferLists[NFREELIST];
+    std::mutex _transferMtx[NFREELIST];
+    size_t _transferCacheMaxSize[NFREELIST] = {0};
 
     CentralCache()
     {}

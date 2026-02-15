@@ -48,7 +48,7 @@ public:
         void* end = nullptr;
         list.PopRange(start, end, returnNum);
 
-        CentralCache::GetInstance()->ReleaseListToSpans(start, size);
+        CentralCache::GetInstance()->ReleaseListToSpans(start, size, returnNum);
     }
 
     void *FetchFromCentralCache(size_t index, size_t size)
