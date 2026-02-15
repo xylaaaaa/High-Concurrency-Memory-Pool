@@ -16,7 +16,9 @@ public:
 
         if (!_spanLists[k].Empty())
         {
-            return _spanLists[k].PopFront();
+            Span *span = _spanLists[k].PopFront();
+            span->_isUse = true;
+            return span;
         }
 
         for (size_t i = k + 1; i < NPAGES; i++)
@@ -24,17 +26,22 @@ public:
             if (!_spanLists[i].Empty())
             {
                 Span *nSpan = _spanLists[i].PopFront();
+                UnMapSpan(nSpan);
                 Span *kSpan = new Span;
 
                 kSpan->_pageID = nSpan->_pageID;
                 kSpan->_n = k;
+                kSpan->_isUse = true;
 
                 nSpan->_pageID += k;
                 nSpan->_n -= k;
+                nSpan->_isUse = false;
 
+                MapSpan(kSpan);
+                MapSpan(nSpan);
                 _spanLists[nSpan->_n].PushFront(nSpan);
 
-                return _spanLists[k].PopFront();
+                return kSpan;
             }
         }
 
@@ -42,7 +49,9 @@ public:
         void *ptr = SystemAlloc(NPAGES - 1);
         bigSpan->_pageID = (PAGE_ID)ptr >> PAGE_SHIFT; // 得到大内存块的起始页号
         bigSpan->_n = NPAGES - 1;
+        bigSpan->_isUse = false;
 
+        MapSpan(bigSpan);
         _spanLists[bigSpan->_n].PushFront(bigSpan);
 
         return NewSpan(k);
@@ -66,6 +75,9 @@ public:
 
     void ReleaseSpanToPageCache(Span* span)
     {
+        assert(span);
+        UnMapSpan(span);
+
         // 对span前后的页进行合并,缓解外内存碎片问题
         while(1)
         {
@@ -86,6 +98,7 @@ public:
                 break;
             }
 
+            UnMapSpan(prevSpan);
             span->_pageID = prevSpan->_pageID;
             span->_n += prevSpan->_n;
 
@@ -113,6 +126,7 @@ public:
             {
                 break;
             } 
+            UnMapSpan(nextSpan);
             span->_n += nextSpan->_n;
             _spanLists[nextSpan->_n].Erase(nextSpan);
             delete nextSpan;
@@ -120,14 +134,31 @@ public:
 
         _spanLists[span->_n].PushFront(span);
         span->_isUse = false;
-        _idSpanMap[span->_pageID] = span;
-        _idSpanMap[span->_pageID + span->_n - 1] = span;
+        MapSpan(span);
     }
 
 
     std::mutex _pageMtx;
 
 private:
+    void MapSpan(Span *span)
+    {
+        assert(span);
+        for (size_t i = 0; i < span->_n; ++i)
+        {
+            _idSpanMap[span->_pageID + i] = span;
+        }
+    }
+
+    void UnMapSpan(Span *span)
+    {
+        assert(span);
+        for (size_t i = 0; i < span->_n; ++i)
+        {
+            _idSpanMap.erase(span->_pageID + i);
+        }
+    }
+
     SpanList _spanLists[NPAGES];
 
     std::unordered_map<PAGE_ID, Span*> _idSpanMap;

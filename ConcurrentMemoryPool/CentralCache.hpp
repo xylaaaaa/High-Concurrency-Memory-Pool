@@ -43,14 +43,13 @@ public:
         span->_freeList = start;
         start += size;
         void* tail = span -> _freeList;
-        int i = 1;
         while(start < end)
         {
-            i++;
             NextObj(tail) = start;
             tail = NextObj(tail);
             start += size; // 按照size大小切分
         }
+        NextObj(tail) = nullptr;
         
         // 还回去要加锁
         list._mtx.lock();
@@ -70,12 +69,10 @@ public:
         //从span中获取batchNum个对象
         start = span->_freeList;
         end = start;
-        size_t i = 0;
         size_t actualNum = 1;
-        while (i < batchNum && NextObj(end) != nullptr)
+        while (actualNum < batchNum && NextObj(end) != nullptr)
         {
             end = NextObj(end);
-            i++;
             actualNum++;
         }
         span->_freeList = NextObj(end);

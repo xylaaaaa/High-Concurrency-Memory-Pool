@@ -30,7 +30,7 @@ public:
         _freeLists[index].Push(ptr);
 
         //当链表长度大于一次批量申请的内存时就开始还一段list给central cache
-        if (_freeLists[index].Size() >= _freeLists->MaxSize())
+        if (_freeLists[index].Size() >= _freeLists[index].MaxSize())
         {
             ListTooLong(_freeLists[index], size);
         }
@@ -69,7 +69,7 @@ public:
         }
         else
         {
-            _freeLists[index].PushRange(NextObj(start), end, actualNum);
+            _freeLists[index].PushRange(NextObj(start), end, actualNum - 1);
             return start;
         }
     }
