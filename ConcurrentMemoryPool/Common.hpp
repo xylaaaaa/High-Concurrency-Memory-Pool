@@ -56,6 +56,7 @@ using std::cout;
 using std::endl;
 
 static const size_t MAX_BYTES = 256 * 1024;
+static const size_t THREAD_CACHE_MAX_BYTES = 64 * 1024;
 static const size_t NFREELIST = 208;
 static const size_t NPAGES = 129;
 static const size_t PAGE_SHIFT = 13;

@@ -1,10 +1,22 @@
 #pragma once
 
+#include <cstdlib>
+
 #include "Common.hpp"
 #include "ThreadCache.hpp"
 
 static void *ConcurrentAlloc(size_t size)
 {
+    if (size == 0)
+    {
+        size = 1;
+    }
+
+    if (size > THREAD_CACHE_MAX_BYTES)
+    {
+        return std::malloc(size);
+    }
+
     if (pTLSThreadCache == nullptr)
     {
         pTLSThreadCache = new ThreadCache;
@@ -18,6 +30,22 @@ static void *ConcurrentAlloc(size_t size)
 
 static void ConcurrentFree(void *ptr, size_t size)
 {
+    if (ptr == nullptr)
+    {
+        return;
+    }
+
+    if (size == 0)
+    {
+        size = 1;
+    }
+
+    if (size > THREAD_CACHE_MAX_BYTES)
+    {
+        std::free(ptr);
+        return;
+    }
+
     assert(pTLSThreadCache);
     pTLSThreadCache->Deallocate(ptr, size);
 }
