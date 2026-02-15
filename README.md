@@ -5,6 +5,7 @@ A learning project for a high-concurrency memory pool (TCMalloc-like layered cac
 ## Structure
 
 - `ConcurrentMemoryPool/ConcurrentAlloc.hpp`: public allocation API (`ConcurrentAlloc`/`ConcurrentFree`)
+- `ConcurrentMemoryPool/AllocatorWrapper.hpp`: integration wrapper (RAII + STL allocator adapter)
 - `ConcurrentMemoryPool/ThreadCache.hpp`: thread-local freelists
 - `ConcurrentMemoryPool/CentralCache.hpp`: shared central cache
 - `ConcurrentMemoryPool/PageCache.hpp`: span/page management
@@ -52,6 +53,44 @@ More benchmark options are documented in:
 
 - `ConcurrentMemoryPool/bench/README.md`
 
+## Integrate Into Other Projects
+
+Build integration demo:
+
+```bash
+cd /Users/chenjunwei/project/High-Concurrency-Memory-Pool/ConcurrentMemoryPool
+make demo
+./build/allocator_demo
+```
+
+Example usage in your code:
+
+```cpp
+#include "AllocatorWrapper.hpp"
+#include <vector>
+
+struct Order {
+    int id;
+    explicit Order(int oid) : id(oid) {}
+};
+
+void UsePool()
+{
+    // RAII object
+    auto order = cmp::MakeUnique<Order>(42);
+
+    // STL container allocator adapter
+    std::vector<int, cmp::PoolAllocator<int>> values;
+    values.push_back(order->id);
+}
+```
+
+Recommended migration path:
+
+1. Replace malloc/free or new/delete on hot paths with `cmp::MakeUnique` and `cmp::PoolAllocator`.
+2. Keep non-hot or very large objects on the default path.
+3. Run `bench/allocator_bench.cc` before/after to verify throughput and latency.
+
 ## Local Performance Snapshot
 
 ### Fixed size (64B), immediate free, warmup=1s, measure=2s
@@ -69,7 +108,7 @@ In this scenario, average alloc/free latency is also lower than `malloc/free`.
 
 Parameters: `size-dist=mixed`, `mode=window`, `window=1024`, `warmup=1s`, `measure=2s`.
 
-- 4 threads: pool throughput is about `-64.6%` vs malloc
-- 8 threads: pool throughput is about `-48.7%` vs malloc
+- 4 threads: pool throughput is about `+19.3%` vs malloc
+- 8 threads: pool throughput is about `+14.2%` vs malloc
 
-This indicates mixed-size high-contention paths still need optimization.
+This indicates mixed-size high-contention performance has improved and now beats malloc in this test setup.
