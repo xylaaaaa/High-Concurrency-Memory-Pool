@@ -60,6 +60,7 @@ public:
     Span* MapObjectToSpan(void *obj)
     {
         PAGE_ID id = ((PAGE_ID)obj >> PAGE_SHIFT); // 将obj强转为PAGE_ID, 然后右移PAGE_SHIFT位,得到页号
+        std::lock_guard<std::mutex> lock(_idSpanMtx);
         auto ret = _idSpanMap.find(id);
         if (ret != _idSpanMap.end())
         {
@@ -82,12 +83,11 @@ public:
         while(1)
         {
             PAGE_ID prevId = span->_pageID - 1;
-            auto ret = _idSpanMap.find(prevId);
-            if (ret == _idSpanMap.end())
+            Span* prevSpan = FindSpanByPageId(prevId);
+            if (prevSpan == nullptr)
             {   
                 break;
             }
-            Span* prevSpan = ret->second;
             if (prevSpan->_isUse == true)
             {
                 break;
@@ -109,14 +109,11 @@ public:
         while(1)
         {
             PAGE_ID nextId = span->_pageID + span->_n;
-            auto ret = _idSpanMap.find(nextId);
-
-            if (ret == _idSpanMap.end())
+            Span* nextSpan = FindSpanByPageId(nextId);
+            if (nextSpan == nullptr)
             {
                 break;
             }
-
-            Span* nextSpan = ret->second;
             if (nextSpan->_isUse == true)
             {
                 break;
@@ -141,9 +138,21 @@ public:
     std::mutex _pageMtx;
 
 private:
+    Span *FindSpanByPageId(PAGE_ID id)
+    {
+        std::lock_guard<std::mutex> lock(_idSpanMtx);
+        auto ret = _idSpanMap.find(id);
+        if (ret == _idSpanMap.end())
+        {
+            return nullptr;
+        }
+        return ret->second;
+    }
+
     void MapSpan(Span *span)
     {
         assert(span);
+        std::lock_guard<std::mutex> lock(_idSpanMtx);
         for (size_t i = 0; i < span->_n; ++i)
         {
             _idSpanMap[span->_pageID + i] = span;
@@ -153,6 +162,7 @@ private:
     void UnMapSpan(Span *span)
     {
         assert(span);
+        std::lock_guard<std::mutex> lock(_idSpanMtx);
         for (size_t i = 0; i < span->_n; ++i)
         {
             _idSpanMap.erase(span->_pageID + i);
@@ -162,6 +172,7 @@ private:
     SpanList _spanLists[NPAGES];
 
     std::unordered_map<PAGE_ID, Span*> _idSpanMap;
+    std::mutex _idSpanMtx;
 
     PageCache()
     {

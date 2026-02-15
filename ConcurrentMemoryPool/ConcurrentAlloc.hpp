@@ -9,7 +9,9 @@ static void *ConcurrentAlloc(size_t size)
     {
         pTLSThreadCache = new ThreadCache;
     }
+#if defined(CMP_ALLOC_TRACE) && CMP_ALLOC_TRACE
     cout << "Thread ID: " << get_thread_id_str() << " ThreadCache: " << pTLSThreadCache << endl;
+#endif
 
     return pTLSThreadCache->Allocate(size);
 }

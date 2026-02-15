@@ -248,11 +248,11 @@ public:
         }
         else if (bytes <= 64 * 1024)
         {
-            return _Index(bytes - 8 * 1024, 8) + group_array[2] + group_array[1] + group_array[0];
+            return _Index(bytes - 8 * 1024, 10) + group_array[2] + group_array[1] + group_array[0];
         }
         else if (bytes <= 256 * 1024)
         {
-            return _Index(bytes - 64 * 1024, 9) + group_array[3] + group_array[2] + group_array[1] + group_array[0];
+            return _Index(bytes - 64 * 1024, 13) + group_array[3] + group_array[2] + group_array[1] + group_array[0];
         }
         else
         {
